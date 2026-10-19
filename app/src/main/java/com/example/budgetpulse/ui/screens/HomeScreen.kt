@@ -29,8 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -54,15 +52,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.ui.components.AddCategorySheet
+import com.example.budgetpulse.ui.components.AppBottomNavigationBar
 import com.example.budgetpulse.ui.components.CategoryCard
 import com.example.budgetpulse.ui.components.CustomCategoryDialog
 import com.example.budgetpulse.ui.components.EditAmountDialog
+import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.components.SectionHeader
 import com.example.budgetpulse.ui.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    onNavigateTab: (NavTab) -> Unit = {},
     viewModel: MainViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -103,10 +104,11 @@ fun HomeScreen(
                 },
                 actions = {
                     IconButton(onClick = { viewModel.toggleEditMode() }) {
-                        Icon(
-                            imageVector = if (uiState.isEditMode) Icons.Default.Check else Icons.Default.Edit,
-                            contentDescription = if (uiState.isEditMode) "Done" else "Edit Mode",
-                            tint = if (uiState.isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        Text(
+                            text = if (uiState.isEditMode) "Done" else "Edit",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 },
@@ -146,7 +148,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = "💡 Tap 'X' to delete card • Long press background or tap checkmark to exit Edit Mode",
+                                text = "💡 Tap 'X' to delete card • Long press background or tap Done to exit Edit Mode",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFF5D4037)
                             )
@@ -214,7 +216,7 @@ fun HomeScreen(
                 exit = scaleOut() + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 80.dp)
             ) {
                 FloatingActionButton(
                     onClick = { viewModel.openAddCategorySheet() },
@@ -229,6 +231,15 @@ fun HomeScreen(
                         modifier = Modifier.size(32.dp)
                     )
                 }
+            }
+
+            // Bottom Navigation Bar with "Home" highlighted
+            if (!uiState.isEditMode) {
+                AppBottomNavigationBar(
+                    currentTab = NavTab.HOME,
+                    onTabSelected = onNavigateTab,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
 

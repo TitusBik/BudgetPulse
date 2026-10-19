@@ -6,8 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.screens.HomeScreen
+import com.example.budgetpulse.ui.screens.TransactionScreen
 import com.example.budgetpulse.ui.theme.BudgetPulseTheme
 
 class MainActivity : ComponentActivity() {
@@ -16,9 +22,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BudgetPulseTheme {
-                HomeScreen()
+                var currentTab by remember { mutableStateOf(NavTab.TRANSACTIONS) }
+
+                when (currentTab) {
+                    NavTab.HOME -> HomeScreen(onNavigateTab = { currentTab = it })
+                    NavTab.TRANSACTIONS -> TransactionScreen(onNavigateTab = { currentTab = it })
+                }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TransactionScreenPreview() {
+    BudgetPulseTheme {
+        TransactionScreen()
     }
 }
 
