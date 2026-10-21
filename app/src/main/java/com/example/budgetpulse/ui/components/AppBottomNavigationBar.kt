@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +35,8 @@ import androidx.compose.ui.unit.sp
 
 enum class NavTab {
     HOME,
-    TRANSACTIONS
+    TRANSACTIONS,
+    BUDGET
 }
 
 @Composable
@@ -62,7 +64,6 @@ fun AppBottomNavigationBar(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Requirement 4: "Home" tab
                 NavItem(
                     label = "Home",
                     icon = Icons.Default.Home,
@@ -70,12 +71,18 @@ fun AppBottomNavigationBar(
                     onClick = { onTabSelected(NavTab.HOME) }
                 )
 
-                // Requirement 4: "Transactions" tab
                 NavItem(
                     label = "Transactions",
                     icon = Icons.AutoMirrored.Filled.ReceiptLong,
                     isSelected = currentTab == NavTab.TRANSACTIONS,
                     onClick = { onTabSelected(NavTab.TRANSACTIONS) }
+                )
+
+                NavItem(
+                    label = "Budget",
+                    icon = Icons.AutoMirrored.Filled.ShowChart,
+                    isSelected = currentTab == NavTab.BUDGET,
+                    onClick = { onTabSelected(NavTab.BUDGET) }
                 )
             }
         }
@@ -89,7 +96,6 @@ private fun NavItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    // Requirement 4: Distinctive yellow background shape around icon and text when active
     val pillBackgroundColor by animateColorAsState(
         targetValue = if (isSelected) Color(0xFFFFD54F) else Color.Transparent,
         animationSpec = tween(300),
@@ -108,7 +114,7 @@ private fun NavItem(
             .clip(CircleShape)
             .background(pillBackgroundColor)
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -118,15 +124,15 @@ private fun NavItem(
                 imageVector = icon,
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
 
             if (isSelected) {
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
