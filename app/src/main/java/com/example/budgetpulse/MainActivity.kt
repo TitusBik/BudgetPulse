@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.budgetpulse.ui.components.NavTab
+import com.example.budgetpulse.ui.screens.BudgetScreen
 import com.example.budgetpulse.ui.screens.HomeScreen
 import com.example.budgetpulse.ui.screens.TransactionScreen
 import com.example.budgetpulse.ui.theme.BudgetPulseTheme
@@ -22,11 +23,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BudgetPulseTheme {
-                var currentTab by remember { mutableStateOf(NavTab.TRANSACTIONS) }
+                var currentTab by remember { mutableStateOf(NavTab.BUDGET) }
 
                 when (currentTab) {
                     NavTab.HOME -> HomeScreen(onNavigateTab = { currentTab = it })
                     NavTab.TRANSACTIONS -> TransactionScreen(onNavigateTab = { currentTab = it })
+                    NavTab.BUDGET -> BudgetScreen(onNavigateTab = { currentTab = it })
                 }
             }
         }
@@ -35,43 +37,8 @@ class MainActivity : ComponentActivity() {
 
 @Preview(showBackground = true)
 @Composable
-fun TransactionScreenPreview() {
+fun BudgetScreenPreview() {
     BudgetPulseTheme {
-        TransactionScreen()
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun HomeScreenPreview() {
-    BudgetPulseTheme {
-        HomeScreen()
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun EditModePreview() {
-    val sampleViewModel = com.example.budgetpulse.ui.viewmodel.MainViewModel().apply {
-        setEditMode(true)
-    }
-    BudgetPulseTheme {
-        HomeScreen(viewModel = sampleViewModel)
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun AddCategorySheetPreview() {
-    val sampleViewModel = com.example.budgetpulse.ui.viewmodel.MainViewModel()
-    val uiState = sampleViewModel.uiState.collectAsState().value
-    BudgetPulseTheme {
-        com.example.budgetpulse.ui.components.AddCategorySheet(
-            activeCategories = uiState.activeCategories,
-            availableCategories = uiState.availableCategories,
-            onAddCategory = {},
-            onCustomClick = {},
-            onDismiss = {}
-        )
+        BudgetScreen()
     }
 }
