@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,7 +37,8 @@ import androidx.compose.ui.unit.sp
 enum class NavTab {
     HOME,
     TRANSACTIONS,
-    BUDGET
+    BUDGET,
+    SETTINGS
 }
 
 @Composable
@@ -48,7 +50,7 @@ fun AppBottomNavigationBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
@@ -60,8 +62,8 @@ fun AppBottomNavigationBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NavItem(
@@ -83,6 +85,13 @@ fun AppBottomNavigationBar(
                     icon = Icons.AutoMirrored.Filled.ShowChart,
                     isSelected = currentTab == NavTab.BUDGET,
                     onClick = { onTabSelected(NavTab.BUDGET) }
+                )
+
+                NavItem(
+                    label = "Setting",
+                    icon = Icons.Default.Settings,
+                    isSelected = currentTab == NavTab.SETTINGS,
+                    onClick = { onTabSelected(NavTab.SETTINGS) }
                 )
             }
         }
@@ -114,7 +123,7 @@ private fun NavItem(
             .clip(CircleShape)
             .background(pillBackgroundColor)
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -124,7 +133,7 @@ private fun NavItem(
                 imageVector = icon,
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
 
             if (isSelected) {
@@ -132,7 +141,7 @@ private fun NavItem(
 
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 12.sp),
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
