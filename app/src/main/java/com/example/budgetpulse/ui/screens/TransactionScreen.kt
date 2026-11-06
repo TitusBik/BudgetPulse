@@ -21,9 +21,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.budgetpulse.data.local.BudgetDatabase
+import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.ui.components.AppBottomNavigationBar
 import com.example.budgetpulse.ui.components.CalendarView
@@ -32,12 +35,14 @@ import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.components.TransactionGroupHeader
 import com.example.budgetpulse.ui.components.TransactionItemCard
 import com.example.budgetpulse.ui.viewmodel.TransactionViewModel
+import com.example.budgetpulse.ui.viewmodel.TransactionViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionScreen(
     onNavigateTab: (NavTab) -> Unit = {},
-    viewModel: TransactionViewModel = viewModel()
+    transactionDao: TransactionDao = BudgetDatabase.getDatabase(LocalContext.current).transactionDao(),
+    viewModel: TransactionViewModel = viewModel(factory = TransactionViewModelFactory(transactionDao))
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

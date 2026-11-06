@@ -47,9 +47,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.budgetpulse.data.local.BudgetDatabase
+import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.ui.components.AddCategorySheet
 import com.example.budgetpulse.ui.components.AppBottomNavigationBar
@@ -59,12 +62,14 @@ import com.example.budgetpulse.ui.components.EditAmountDialog
 import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.components.SectionHeader
 import com.example.budgetpulse.ui.viewmodel.MainViewModel
+import com.example.budgetpulse.ui.viewmodel.MainViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateTab: (NavTab) -> Unit = {},
-    viewModel: MainViewModel = viewModel()
+    transactionDao: TransactionDao = BudgetDatabase.getDatabase(LocalContext.current).transactionDao(),
+    viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(transactionDao))
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

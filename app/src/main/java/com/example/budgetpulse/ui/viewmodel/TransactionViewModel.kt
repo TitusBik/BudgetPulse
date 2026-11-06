@@ -1,13 +1,18 @@
 package com.example.budgetpulse.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.data.model.DailySummary
 import com.example.budgetpulse.data.model.TransactionItem
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -47,22 +52,49 @@ data class TransactionUiState(
         }
 }
 
-class TransactionViewModel : ViewModel() {
+class TransactionViewModel(private val transactionDao: TransactionDao) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TransactionUiState())
-    val uiState: StateFlow<TransactionUiState> = _uiState.asStateFlow()
+    val allTransactionsList: StateFlow<List<TransactionItem>> =
+        transactionDao.getAllTransactions()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+
+    private val _selectedMonth = MutableStateFlow(YearMonth.now())
+    private val _selectedDate = MutableStateFlow(LocalDate.now())
+
+    val uiState: StateFlow<TransactionUiState> = combine(
+        _selectedMonth,
+        _selectedDate,
+        allTransactionsList
+    ) { month, date, transactions ->
+        TransactionUiState(
+            selectedMonth = month,
+            selectedDate = date,
+            transactions = transactions
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = TransactionUiState()
+    )
 
     init {
-        generateInitialData()
+        viewModelScope.launch {
+            allTransactionsList.collect { list ->
+                if (list.isEmpty()) {
+                    seedInitialData()
+                }
+            }
+        }
     }
 
-    private fun generateInitialData() {
+    private suspend fun seedInitialData() {
         val today = LocalDate.now()
-
-        // Generate sample transactions dynamically centered around system date
         val sampleList = listOf(
             TransactionItem(
-                id = "tx1",
                 categoryName = "Salary",
                 categoryIconName = "attach_money",
                 categoryColorHex = 0xFFFFF8E1,
@@ -73,7 +105,6 @@ class TransactionViewModel : ViewModel() {
                 note = "Monthly Paycheck"
             ),
             TransactionItem(
-                id = "tx2",
                 categoryName = "Food & Drink",
                 categoryIconName = "fastfood",
                 categoryColorHex = 0xFFFFF3E0,
@@ -84,7 +115,6 @@ class TransactionViewModel : ViewModel() {
                 note = "Lunch with Team"
             ),
             TransactionItem(
-                id = "tx3",
                 categoryName = "Shopping",
                 categoryIconName = "shopping_cart",
                 categoryColorHex = 0xFFF3E5F5,
@@ -95,7 +125,6 @@ class TransactionViewModel : ViewModel() {
                 note = "Supermarket Grocery"
             ),
             TransactionItem(
-                id = "tx4",
                 categoryName = "Transportation",
                 categoryIconName = "directions_car",
                 categoryColorHex = 0xFFE8F5E9,
@@ -106,7 +135,6 @@ class TransactionViewModel : ViewModel() {
                 note = "Petrol Refill"
             ),
             TransactionItem(
-                id = "tx5",
                 categoryName = "Freelance",
                 categoryIconName = "work",
                 categoryColorHex = 0xFFE0F2F1,
@@ -117,7 +145,6 @@ class TransactionViewModel : ViewModel() {
                 note = "Side Project Bonus"
             ),
             TransactionItem(
-                id = "tx6",
                 categoryName = "Housing & Utilities",
                 categoryIconName = "home",
                 categoryColorHex = 0xFFE3F2FD,
@@ -128,7 +155,6 @@ class TransactionViewModel : ViewModel() {
                 note = "Electricity Bill"
             ),
             TransactionItem(
-                id = "tx7",
                 categoryName = "Entertainment",
                 categoryIconName = "movie",
                 categoryColorHex = 0xFFEDE7F6,
@@ -139,52 +165,57 @@ class TransactionViewModel : ViewModel() {
                 note = "Cinema Tickets"
             )
         )
+        sampleList.forEach { transactionDao.insertTransaction(it) }
+    }
 
-        _uiState.update {
-            it.copy(
-                selectedMonth = YearMonth.from(today),
-                selectedDate = today,
-                transactions = sampleList
-            )
+    fun addNewTransaction(item: TransactionItem) {
+        viewModelScope.launch {
+            transactionDao.insertTransaction(item)
+        }
+    }
+
+    fun updateTransactionItem(item: TransactionItem) {
+        viewModelScope.launch {
+            transactionDao.updateTransaction(item)
+        }
+    }
+
+    fun deleteTransactionItem(item: TransactionItem) {
+        viewModelScope.launch {
+            transactionDao.deleteTransaction(item)
         }
     }
 
     fun selectDate(date: LocalDate) {
-        _uiState.update {
-            it.copy(
-                selectedDate = date,
-                selectedMonth = YearMonth.from(date)
-            )
-        }
+        _selectedDate.value = date
+        _selectedMonth.value = YearMonth.from(date)
     }
 
     fun previousMonth() {
-        _uiState.update {
-            val prev = it.selectedMonth.minusMonths(1)
-            it.copy(
-                selectedMonth = prev,
-                selectedDate = prev.atDay(1)
-            )
-        }
+        val prev = _selectedMonth.value.minusMonths(1)
+        _selectedMonth.value = prev
+        _selectedDate.value = prev.atDay(1)
     }
 
     fun nextMonth() {
-        _uiState.update {
-            val next = it.selectedMonth.plusMonths(1)
-            it.copy(
-                selectedMonth = next,
-                selectedDate = next.atDay(1)
-            )
-        }
+        val next = _selectedMonth.value.plusMonths(1)
+        _selectedMonth.value = next
+        _selectedDate.value = next.atDay(1)
     }
 
     fun goToToday() {
         val today = LocalDate.now()
-        _uiState.update {
-            it.copy(
-                selectedDate = today,
-                selectedMonth = YearMonth.from(today)
-            )
+        _selectedDate.value = today
+        _selectedMonth.value = YearMonth.from(today)
+    }
+}
+
+class TransactionViewModelFactory(private val transactionDao: TransactionDao) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(TransactionViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return TransactionViewModel(transactionDao) as T
         }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

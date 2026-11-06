@@ -1,14 +1,19 @@
 package com.example.budgetpulse.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.BudgetViewMode
 import com.example.budgetpulse.data.model.CategoryBudget
 import com.example.budgetpulse.data.model.CategoryItem
 import com.example.budgetpulse.data.model.CategoryType
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import java.time.YearMonth
 
 data class BudgetUiState(
@@ -31,78 +36,96 @@ data class BudgetUiState(
         get() = if (totalBudget > 0) (totalSpent / totalBudget).toFloat().coerceIn(0f, 1f) else 0f
 }
 
-class BudgetViewModel : ViewModel() {
+class BudgetViewModel(private val transactionDao: TransactionDao) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(BudgetUiState())
-    val uiState: StateFlow<BudgetUiState> = _uiState.asStateFlow()
+    private val _selectedMonth = MutableStateFlow(YearMonth.now())
+    private val _viewMode = MutableStateFlow(BudgetViewMode.PLAN)
+    private val _allocatedBudgets = MutableStateFlow<Map<String, Double?>>(emptyMap())
+    private val _editingCategoryBudget = MutableStateFlow<CategoryBudget?>(null)
 
-    init {
-        loadDefaultBudgetData()
-    }
-
-    private fun loadDefaultBudgetData() {
-        val defaultCategories = listOf(
-            CategoryBudget(
-                category = CategoryItem("exp_1", "Housing & Utilities", CategoryType.EXPENSE, "home", 0xFFFFF3E0),
-                allocatedBudget = null,
-                spentAmount = 0.0
-            ),
-            CategoryBudget(
-                category = CategoryItem("exp_2", "Food & Drink", CategoryType.EXPENSE, "fastfood", 0xFFFFF8E1),
-                allocatedBudget = null,
-                spentAmount = 45.50
-            ),
-            CategoryBudget(
-                category = CategoryItem("exp_3", "Transportation", CategoryType.EXPENSE, "directions_car", 0xFFE3F2FD),
-                allocatedBudget = null,
-                spentAmount = 35.00
-            ),
-            CategoryBudget(
-                category = CategoryItem("exp_4", "Shopping", CategoryType.EXPENSE, "shopping_bag", 0xFFFFEBEE),
-                allocatedBudget = null,
-                spentAmount = 120.00
-            ),
-            CategoryBudget(
-                category = CategoryItem("exp_5", "Other", CategoryType.EXPENSE, "build", 0xFFE0F2F1),
-                allocatedBudget = null,
-                spentAmount = 0.0
-            )
+    private val allTransactions = transactionDao.getAllTransactions()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
 
-        _uiState.update {
-            it.copy(categoryBudgets = defaultCategories)
+    private val defaultCategories = listOf(
+        CategoryItem("exp_1", "Housing & Utilities", CategoryType.EXPENSE, "home", 0xFFFFF3E0),
+        CategoryItem("exp_2", "Food & Drink", CategoryType.EXPENSE, "fastfood", 0xFFFFF8E1),
+        CategoryItem("exp_3", "Transportation", CategoryType.EXPENSE, "directions_car", 0xFFE3F2FD),
+        CategoryItem("exp_4", "Shopping", CategoryType.EXPENSE, "shopping_bag", 0xFFFFEBEE),
+        CategoryItem("exp_5", "Other", CategoryType.EXPENSE, "build", 0xFFE0F2F1)
+    )
+
+    val uiState: StateFlow<BudgetUiState> = combine(
+        _selectedMonth,
+        _viewMode,
+        _allocatedBudgets,
+        _editingCategoryBudget,
+        allTransactions
+    ) { month, mode, allocMap, editing, transactions ->
+        val monthTransactions = transactions.filter { YearMonth.from(it.date) == month && it.type == CategoryType.EXPENSE }
+
+        val categoryBudgetsList = defaultCategories.map { category ->
+            val spent = monthTransactions
+                .filter { it.categoryName.equals(category.name, ignoreCase = true) }
+                .sumOf { Math.abs(it.amount) }
+            val alloc = allocMap[category.id]
+            CategoryBudget(
+                category = category,
+                allocatedBudget = alloc,
+                spentAmount = spent
+            )
         }
-    }
+
+        BudgetUiState(
+            selectedMonth = month,
+            totalBudget = 2500.0,
+            viewMode = mode,
+            categoryBudgets = categoryBudgetsList,
+            editingCategoryBudget = editing
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = BudgetUiState()
+    )
 
     fun previousMonth() {
-        _uiState.update { it.copy(selectedMonth = it.selectedMonth.minusMonths(1)) }
+        _selectedMonth.value = _selectedMonth.value.minusMonths(1)
     }
 
     fun nextMonth() {
-        _uiState.update { it.copy(selectedMonth = it.selectedMonth.plusMonths(1)) }
+        _selectedMonth.value = _selectedMonth.value.plusMonths(1)
     }
 
     fun setViewMode(mode: BudgetViewMode) {
-        _uiState.update { it.copy(viewMode = mode) }
+        _viewMode.value = mode
     }
 
     fun startEditingBudget(item: CategoryBudget) {
-        _uiState.update { it.copy(editingCategoryBudget = item) }
+        _editingCategoryBudget.value = item
     }
 
     fun dismissEditingBudget() {
-        _uiState.update { it.copy(editingCategoryBudget = null) }
+        _editingCategoryBudget.value = null
     }
 
     fun updateAllocatedBudget(categoryId: String, newBudget: Double?) {
-        _uiState.update { state ->
-            val updated = state.categoryBudgets.map {
-                if (it.category.id == categoryId) it.copy(allocatedBudget = newBudget) else it
-            }
-            state.copy(
-                categoryBudgets = updated,
-                editingCategoryBudget = null
-            )
+        val current = _allocatedBudgets.value.toMutableMap()
+        current[categoryId] = newBudget
+        _allocatedBudgets.value = current
+        _editingCategoryBudget.value = null
+    }
+}
+
+class BudgetViewModelFactory(private val transactionDao: TransactionDao) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(BudgetViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return BudgetViewModel(transactionDao) as T
         }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

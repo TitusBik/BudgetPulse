@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import com.example.budgetpulse.data.local.BudgetDatabase
 import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.screens.BudgetScreen
 import com.example.budgetpulse.ui.screens.HomeScreen
@@ -28,6 +29,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Initialize Room Database
+        val database = BudgetDatabase.getDatabase(this)
+
         setContent {
             val profileState by profileViewModel.profileState.collectAsState()
 

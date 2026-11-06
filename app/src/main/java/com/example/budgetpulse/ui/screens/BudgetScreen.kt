@@ -41,10 +41,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.budgetpulse.data.local.BudgetDatabase
+import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryBudget
 import com.example.budgetpulse.ui.components.AppBottomNavigationBar
 import com.example.budgetpulse.ui.components.BudgetCategoryRow
@@ -52,6 +55,7 @@ import com.example.budgetpulse.ui.components.BudgetOverviewCard
 import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.components.PlanRemainToggle
 import com.example.budgetpulse.ui.viewmodel.BudgetViewModel
+import com.example.budgetpulse.ui.viewmodel.BudgetViewModelFactory
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -59,7 +63,8 @@ import java.util.Locale
 @Composable
 fun BudgetScreen(
     onNavigateTab: (NavTab) -> Unit = {},
-    viewModel: BudgetViewModel = viewModel()
+    transactionDao: TransactionDao = BudgetDatabase.getDatabase(LocalContext.current).transactionDao(),
+    viewModel: BudgetViewModel = viewModel(factory = BudgetViewModelFactory(transactionDao))
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

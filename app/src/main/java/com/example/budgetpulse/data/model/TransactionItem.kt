@@ -1,18 +1,39 @@
 package com.example.budgetpulse.data.model
 
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
+@Entity(tableName = "transactionitem_table")
 data class TransactionItem(
-    val id: String,
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+
+    @ColumnInfo(name = "category_name")
     val categoryName: String,
+
+    @ColumnInfo(name = "category_icon_name")
     val categoryIconName: String,
+
+    @ColumnInfo(name = "category_color_hex")
     val categoryColorHex: Long,
+
+    @ColumnInfo(name = "amount")
     val amount: Double,
+
+    @ColumnInfo(name = "type")
     val type: CategoryType,
+
+    @ColumnInfo(name = "date")
     val date: LocalDate,
+
+    @ColumnInfo(name = "time")
     val time: LocalTime,
+
+    @ColumnInfo(name = "note")
     val note: String = ""
 ) {
     val formattedAmount: String

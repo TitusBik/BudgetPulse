@@ -1,12 +1,19 @@
 package com.example.budgetpulse.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryItem
 import com.example.budgetpulse.data.model.CategoryType
+import com.example.budgetpulse.data.model.TransactionItem
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 data class UiState(
@@ -18,19 +25,24 @@ data class UiState(
     val editingCategory: CategoryItem? = null
 )
 
-class MainViewModel : ViewModel() {
+class MainViewModel(private val transactionDao: TransactionDao) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private val allTransactions = transactionDao.getAllTransactions()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     init {
         loadInitialData()
+        observeTransactions()
     }
 
     private fun loadInitialData() {
-        // Requirement 1:
-        // Expense section displays 5 category cards by default:
-        // (Housing & Utilities, Food & Drink, Transportation, Shopping, Other)
         val defaultExpense = listOf(
             CategoryItem("exp_1", "Housing & Utilities", CategoryType.EXPENSE, "home", 0xFFE3F2FD, "RM0", true),
             CategoryItem("exp_2", "Food & Drink", CategoryType.EXPENSE, "fastfood", 0xFFFFF3E0, "RM0", true),
@@ -39,12 +51,10 @@ class MainViewModel : ViewModel() {
             CategoryItem("exp_5", "Other", CategoryType.EXPENSE, "more_horiz", 0xFFE0F2F1, "RM0", true)
         )
 
-        // Income section displays 1 category card by default: (Salary)
         val defaultIncome = listOf(
             CategoryItem("inc_1", "Salary", CategoryType.INCOME, "attach_money", 0xFFFFF8E1, "RM0", true)
         )
 
-        // Additional available categories for the Add Category panel
         val presetAvailable = listOf(
             CategoryItem("preset_1", "Entertainment", CategoryType.EXPENSE, "movie", 0xFFEDE7F6),
             CategoryItem("preset_2", "Education", CategoryType.EXPENSE, "school", 0xFFE8EAF6),
@@ -70,6 +80,27 @@ class MainViewModel : ViewModel() {
                 activeCategories = defaultExpense + defaultIncome,
                 availableCategories = presetAvailable
             )
+        }
+    }
+
+    private fun observeTransactions() {
+        viewModelScope.launch {
+            allTransactions.collect { transactions ->
+                updateCategoryAmountsFromTransactions(transactions)
+            }
+        }
+    }
+
+    private fun updateCategoryAmountsFromTransactions(transactions: List<TransactionItem>) {
+        _uiState.update { state ->
+            val updatedActive = state.activeCategories.map { category ->
+                val totalForCategory = transactions
+                    .filter { it.categoryName.equals(category.name, ignoreCase = true) && it.type == category.type }
+                    .sumOf { Math.abs(it.amount) }
+                val formatted = if (totalForCategory > 0) "RM${String.format("%,.2f", totalForCategory)}" else "RM0"
+                category.copy(amount = formatted)
+            }
+            state.copy(activeCategories = updatedActive)
         }
     }
 
@@ -99,9 +130,11 @@ class MainViewModel : ViewModel() {
                     id = UUID.randomUUID().toString(),
                     amount = "RM0"
                 )
-                state.copy(activeCategories = state.activeCategories + newCategory)
+                val newActive = state.activeCategories + newCategory
+                state.copy(activeCategories = newActive)
             }
         }
+        updateCategoryAmountsFromTransactions(allTransactions.value)
     }
 
     fun addCustomCategory(name: String, type: CategoryType, iconName: String, colorHex: Long) {
@@ -120,6 +153,7 @@ class MainViewModel : ViewModel() {
                 showCustomCategoryDialog = false
             )
         }
+        updateCategoryAmountsFromTransactions(allTransactions.value)
     }
 
     fun updateCategoryAmount(categoryId: String, newAmount: String) {
@@ -161,5 +195,15 @@ class MainViewModel : ViewModel() {
 
     fun dismissEditingAmount() {
         _uiState.update { it.copy(editingCategory = null) }
+    }
+}
+
+class MainViewModelFactory(private val transactionDao: TransactionDao) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return MainViewModel(transactionDao) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
