@@ -12,7 +12,7 @@ interface AppContainer {
 
 class DefaultAppContainer : AppContainer {
 
-    private val baseUrl = "https://api.adviceslip.com/"
+    private val baseUrl = "https://gist.githubusercontent.com/"
 
     private val retrofit: Retrofit = Retrofit.Builder()
         .baseUrl(baseUrl)
