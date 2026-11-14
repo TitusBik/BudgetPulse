@@ -40,7 +40,7 @@ class InsightsViewModel(
 
             repository.fetchDailyFinancialInsight()
                 .onSuccess { fetchedInsight ->
-                    Log.i("BudgetPulseNetwork", "Fetched tip #${fetchedInsight.id}: ${fetchedInsight.tipText}")
+                    Log.i("BudgetPulseNetwork", "Fetched budgeting tip: ${fetchedInsight.title}")
                     _uiState.update {
                         it.copy(
                             isLoading = false,
