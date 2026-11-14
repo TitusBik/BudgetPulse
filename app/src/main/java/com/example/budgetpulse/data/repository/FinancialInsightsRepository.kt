@@ -13,26 +13,22 @@ class NetworkFinancialInsightsRepository(
     private val apiService: FinancialApiService
 ) : FinancialInsightsRepository {
 
-    // Curated high-resolution financial banner images loaded remotely via Coil
-    private val bannerUrls = listOf(
-        "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1565514020179-026b92b84bb6?auto=format&fit=crop&w=800&q=80"
-    )
+    private val gistUrl =
+        "https://gist.githubusercontent.com/darrellsean/4549b8d7608802060cba818829c8fa02/raw/36000905d3b37a3d2145ade84ac963966ad8ea64/budgeting_tips.json"
+
+    private var currentIndex = 0
 
     override suspend fun fetchDailyFinancialInsight(): Result<FinancialInsight> {
         return withContext(Dispatchers.IO) {
             try {
-                val response = apiService.getRandomFinancialAdvice()
-                val banner = bannerUrls[response.slip.id % bannerUrls.size]
-                Result.success(
-                    FinancialInsight(
-                        id = response.slip.id,
-                        title = "Daily Smart Money Tip #${response.slip.id}",
-                        tipText = response.slip.advice,
-                        bannerImageUrl = banner
-                    )
-                )
+                val tips = apiService.getBudgetingTips(gistUrl)
+                if (tips.isNotEmpty()) {
+                    val selectedTip = tips[currentIndex % tips.size]
+                    currentIndex++
+                    Result.success(selectedTip)
+                } else {
+                    Result.failure(Exception("No budgeting tips returned from server."))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
