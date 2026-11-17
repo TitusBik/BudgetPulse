@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.budgetpulse.ui.theme.LocalAppCurrency
 import java.util.Locale
 
 @Composable
@@ -44,8 +45,11 @@ fun BudgetOverviewCard(
     totalBudget: Double,
     dailyAverage: Double,
     progressFraction: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    totalSpent: Double = 0.0
 ) {
+    val currency = LocalAppCurrency.current.symbol
+    val hasBudget = totalBudget > 0
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
@@ -155,14 +159,36 @@ fun BudgetOverviewCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
+                    if (hasBudget) {
+                        Text(
+                            text = "$currency${String.format(Locale.ENGLISH, "%,.0f", totalBudget)}",
+                            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp),
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "~$currency${String.format(Locale.ENGLISH, "%.2f", dailyAverage)} per day",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        // No category budget set yet -> don't show a made-up total
+                        Text(
+                            text = "Not set",
+                            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp),
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Tap a category below to set a budget",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                     Text(
-                        text = "RM${String.format(Locale.ENGLISH, "%,.0f", totalBudget)}",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp),
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "~RM${String.format(Locale.ENGLISH, "%.2f", dailyAverage)} per day",
+                        text = "Spent $currency${String.format(Locale.ENGLISH, "%,.2f", totalSpent)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
