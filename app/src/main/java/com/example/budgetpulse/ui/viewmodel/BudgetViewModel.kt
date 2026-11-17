@@ -38,9 +38,6 @@ data class BudgetUiState(
     val dailyAverage: Double
         get() = if (daysInMonth > 0) totalBudget / daysInMonth else 0.0
 
-    val hasBudget: Boolean
-        get() = totalBudget > 0
-
     val progressFraction: Float
         get() = if (totalBudget > 0) (totalSpent / totalBudget).toFloat().coerceIn(0f, 1f) else 0f
 }

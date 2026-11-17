@@ -79,10 +79,6 @@ class MainViewModel(private val repository: TransactionRepository) : ViewModel()
         _uiState.update { it.copy(isEditMode = !it.isEditMode) }
     }
 
-    fun setEditMode(enabled: Boolean) {
-        _uiState.update { it.copy(isEditMode = enabled) }
-    }
-
     // ---------- Categories (saved in Room) ----------
 
     fun deleteCategory(categoryId: String) {

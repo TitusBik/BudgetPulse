@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.abs
@@ -41,9 +40,6 @@ data class TransactionUiState(
     // Expense / Income tab for the bottom category list
     val listType: CategoryType = CategoryType.EXPENSE
 ) {
-    val currentMonthTransactions: List<TransactionItem>
-        get() = transactions
-
     val monthlyIncome: Double
         get() = transactions.filter { it.type == CategoryType.INCOME }.sumOf { abs(it.amount) }
 
@@ -90,13 +86,6 @@ data class TransactionUiState(
 
     val visibleTotal: Double
         get() = categoryGroups.sumOf { it.total }
-
-    // Kept for compatibility with older code
-    val groupedTransactions: Map<LocalDate, List<TransactionItem>>
-        get() = transactions
-            .sortedByDescending { it.time }
-            .groupBy { it.date }
-            .toSortedMap(comparator = reverseOrder())
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -131,14 +120,6 @@ class TransactionViewModel(private val repository: TransactionRepository) : View
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = TransactionUiState()
     )
-
-    fun updateTransactionItem(item: TransactionItem) {
-        viewModelScope.launch { repository.updateTransaction(item) }
-    }
-
-    fun deleteTransactionItem(item: TransactionItem) {
-        viewModelScope.launch { repository.deleteTransaction(item) }
-    }
 
     /** Tapping a calendar day shows only that day's transactions in the bottom list. */
     fun selectDate(date: LocalDate) {
