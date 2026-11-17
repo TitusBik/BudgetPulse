@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -53,7 +52,6 @@ private fun money(symbol: String, value: Double) =
     "$symbol${String.format(Locale.ENGLISH, "%,.2f", value)}"
 
 /** Expense / Income switch + "showing date X" chip above the category list. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryListHeader(
     listType: CategoryType,
