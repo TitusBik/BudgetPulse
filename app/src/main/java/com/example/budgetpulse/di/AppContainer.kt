@@ -1,16 +1,20 @@
 package com.example.budgetpulse.di
 
+import android.content.Context
+import com.example.budgetpulse.data.local.BudgetDatabase
 import com.example.budgetpulse.data.remote.FinancialApiService
 import com.example.budgetpulse.data.repository.FinancialInsightsRepository
 import com.example.budgetpulse.data.repository.NetworkFinancialInsightsRepository
+import com.example.budgetpulse.data.repository.TransactionRepository
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 interface AppContainer {
     val financialInsightsRepository: FinancialInsightsRepository
+    val transactionRepository: TransactionRepository
 }
 
-class DefaultAppContainer : AppContainer {
+class DefaultAppContainer(private val context: Context) : AppContainer {
 
     private val baseUrl = "https://gist.githubusercontent.com/"
 
@@ -25,5 +29,14 @@ class DefaultAppContainer : AppContainer {
 
     override val financialInsightsRepository: FinancialInsightsRepository by lazy {
         NetworkFinancialInsightsRepository(retrofitService)
+    }
+
+    // Room database (local storage)
+    private val database: BudgetDatabase by lazy {
+        BudgetDatabase.getDatabase(context)
+    }
+
+    override val transactionRepository: TransactionRepository by lazy {
+        TransactionRepository(database.transactionDao(), database.categoryDao())
     }
 }
