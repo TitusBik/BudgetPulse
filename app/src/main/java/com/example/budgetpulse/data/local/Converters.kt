@@ -5,6 +5,8 @@ import com.example.budgetpulse.data.model.CategoryType
 import java.time.LocalDate
 import java.time.LocalTime
 
+// Functions are called by Room-generated code (registered with @TypeConverters in BudgetDatabase)
+@Suppress("unused")
 class Converters {
     @TypeConverter
     fun fromLocalDate(value: LocalDate?): String? = value?.toString()
