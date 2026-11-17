@@ -41,21 +41,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.budgetpulse.data.local.BudgetDatabase
-import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryBudget
 import com.example.budgetpulse.ui.components.AppBottomNavigationBar
 import com.example.budgetpulse.ui.components.BudgetCategoryRow
 import com.example.budgetpulse.ui.components.BudgetOverviewCard
+import com.example.budgetpulse.ui.components.FinancialInsightCard
 import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.components.PlanRemainToggle
+import com.example.budgetpulse.ui.theme.LocalAppCurrency
 import com.example.budgetpulse.ui.viewmodel.BudgetViewModel
-import com.example.budgetpulse.ui.viewmodel.BudgetViewModelFactory
+import com.example.budgetpulse.ui.viewmodel.InsightsViewModel
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -63,10 +62,11 @@ import java.util.Locale
 @Composable
 fun BudgetScreen(
     onNavigateTab: (NavTab) -> Unit = {},
-    transactionDao: TransactionDao = BudgetDatabase.getDatabase(LocalContext.current).transactionDao(),
-    viewModel: BudgetViewModel = viewModel(factory = BudgetViewModelFactory(transactionDao))
+    viewModel: BudgetViewModel = viewModel(factory = BudgetViewModel.Factory),
+    insightsViewModel: InsightsViewModel = viewModel(factory = InsightsViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val insightsState by insightsViewModel.uiState.collectAsState()
 
     Scaffold(
         bottomBar = {
@@ -99,12 +99,13 @@ fun BudgetScreen(
             BudgetOverviewCard(
                 totalBudget = uiState.totalBudget,
                 dailyAverage = uiState.dailyAverage,
-                progressFraction = uiState.progressFraction
+                progressFraction = uiState.progressFraction,
+                totalSpent = uiState.totalSpent
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. Category Budgets List
+            // 3. Scrollable Network Insights Card + Category Budgets List
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -112,6 +113,16 @@ fun BudgetScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 6.dp)
             ) {
+                // Online Financial Advice & Remote Banner Image (REST API + Coil)
+                item(key = "financial_insight_card") {
+                    FinancialInsightCard(
+                        uiState = insightsState,
+                        onRefreshClick = { insightsViewModel.loadFinancialTip() }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // Category Budgets
                 items(uiState.categoryBudgets, key = { it.category.id }) { item ->
                     BudgetCategoryRow(
                         item = item,
@@ -187,7 +198,11 @@ private fun BudgetTopHeader(
             }
             Spacer(modifier = Modifier.width(4.dp))
             val isCurrent = selectedMonth == YearMonth.now()
-            val monthLabel = if (isCurrent) "This Month" else selectedMonth.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH))
+            val monthLabel = if (isCurrent) {
+                "This Month"
+            } else {
+                selectedMonth.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH))
+            }
             Text(
                 text = monthLabel,
                 style = MaterialTheme.typography.titleMedium,
@@ -227,6 +242,7 @@ private fun EditCategoryBudgetDialog(
     onDismiss: () -> Unit,
     onSave: (Double?) -> Unit
 ) {
+    val currency = LocalAppCurrency.current.symbol
     var textValue by remember {
         mutableStateOf(item.allocatedBudget?.toString() ?: "")
     }
@@ -239,7 +255,7 @@ private fun EditCategoryBudgetDialog(
                 value = textValue,
                 onValueChange = { textValue = it },
                 label = { Text("Budget Allocation (empty for None)") },
-                prefix = { Text("RM ") },
+                prefix = { Text("$currency ") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
