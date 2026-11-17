@@ -47,29 +47,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.budgetpulse.data.local.BudgetDatabase
-import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.ui.components.AddCategorySheet
+import com.example.budgetpulse.ui.components.AddTransactionDialog
 import com.example.budgetpulse.ui.components.AppBottomNavigationBar
 import com.example.budgetpulse.ui.components.CategoryCard
 import com.example.budgetpulse.ui.components.CustomCategoryDialog
-import com.example.budgetpulse.ui.components.EditAmountDialog
 import com.example.budgetpulse.ui.components.NavTab
 import com.example.budgetpulse.ui.components.SectionHeader
 import com.example.budgetpulse.ui.viewmodel.MainViewModel
-import com.example.budgetpulse.ui.viewmodel.MainViewModelFactory
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateTab: (NavTab) -> Unit = {},
-    transactionDao: TransactionDao = BudgetDatabase.getDatabase(LocalContext.current).transactionDao(),
-    viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(transactionDao))
+    viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -121,7 +118,17 @@ fun HomeScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        }
+        },
+        // Same navbar setup as Budget & Settings pages (hidden while in Edit Mode)
+        bottomBar = {
+            if (!uiState.isEditMode) {
+                AppBottomNavigationBar(
+                    currentTab = NavTab.HOME,
+                    onTabSelected = onNavigateTab
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         // Requirement 2: Detect long press gesture on page background to toggle Edit Mode
         Box(
@@ -164,11 +171,21 @@ fun HomeScreen(
                 // Requirement 4: LazyVerticalGrid for card layout on homepage
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3), // 3 columns for neat card presentation
-                    contentPadding = PaddingValues(bottom = 100.dp, top = 8.dp, start = 8.dp, end = 8.dp),
+                    contentPadding = PaddingValues(bottom = if (uiState.isEditMode) 100.dp else 16.dp, top = 8.dp, start = 8.dp, end = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    // Hint: what the card amounts mean
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = "Totals for ${uiState.currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))} • Tap a category to add today's record",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
                     // Requirement 1: "Expense" Section (5 cards by default)
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         SectionHeader(
@@ -185,7 +202,8 @@ fun HomeScreen(
                             isEditMode = uiState.isEditMode,
                             onDeleteClick = { viewModel.deleteCategory(category.id) },
                             onCardClick = {
-                                viewModel.startEditingAmount(category)
+                                // Tap a card -> record an expense/income for today
+                                if (!uiState.isEditMode) viewModel.startAddingTransaction(category)
                             }
                         )
                     }
@@ -207,7 +225,8 @@ fun HomeScreen(
                             isEditMode = uiState.isEditMode,
                             onDeleteClick = { viewModel.deleteCategory(category.id) },
                             onCardClick = {
-                                viewModel.startEditingAmount(category)
+                                // Tap a card -> record an expense/income for today
+                                if (!uiState.isEditMode) viewModel.startAddingTransaction(category)
                             }
                         )
                     }
@@ -221,7 +240,7 @@ fun HomeScreen(
                 exit = scaleOut() + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 80.dp)
+                    .padding(bottom = 24.dp)
             ) {
                 FloatingActionButton(
                     onClick = { viewModel.openAddCategorySheet() },
@@ -238,14 +257,6 @@ fun HomeScreen(
                 }
             }
 
-            // Bottom Navigation Bar with "Home" highlighted
-            if (!uiState.isEditMode) {
-                AppBottomNavigationBar(
-                    currentTab = NavTab.HOME,
-                    onTabSelected = onNavigateTab,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
         }
 
         // Requirement 3: Add Category Bottom Sheet
@@ -275,13 +286,13 @@ fun HomeScreen(
             )
         }
 
-        // Edit Amount Dialog
-        uiState.editingCategory?.let { category ->
-            EditAmountDialog(
+        // Add Transaction Dialog (amount + optional description, saved for today)
+        uiState.addingTransactionCategory?.let { category ->
+            AddTransactionDialog(
                 category = category,
-                onDismiss = { viewModel.dismissEditingAmount() },
-                onConfirm = { newAmount ->
-                    viewModel.updateCategoryAmount(category.id, newAmount)
+                onDismiss = { viewModel.dismissAddingTransaction() },
+                onConfirm = { amount, description ->
+                    viewModel.saveTransaction(category, amount, description)
                 }
             )
         }
