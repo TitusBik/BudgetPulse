@@ -21,28 +21,23 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.budgetpulse.data.local.BudgetDatabase
-import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.ui.components.AppBottomNavigationBar
 import com.example.budgetpulse.ui.components.CalendarView
+import com.example.budgetpulse.ui.components.CategoryListHeader
+import com.example.budgetpulse.ui.components.CategoryTransactionGroupCard
 import com.example.budgetpulse.ui.components.FinancialSummaryCard
 import com.example.budgetpulse.ui.components.NavTab
-import com.example.budgetpulse.ui.components.TransactionGroupHeader
-import com.example.budgetpulse.ui.components.TransactionItemCard
 import com.example.budgetpulse.ui.viewmodel.TransactionViewModel
-import com.example.budgetpulse.ui.viewmodel.TransactionViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionScreen(
     onNavigateTab: (NavTab) -> Unit = {},
-    transactionDao: TransactionDao = BudgetDatabase.getDatabase(LocalContext.current).transactionDao(),
-    viewModel: TransactionViewModel = viewModel(factory = TransactionViewModelFactory(transactionDao))
+    viewModel: TransactionViewModel = viewModel(factory = TransactionViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -60,7 +55,15 @@ fun TransactionScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        }
+        },
+        // Same navbar setup as Budget & Settings pages
+        bottomBar = {
+            AppBottomNavigationBar(
+                currentTab = NavTab.TRANSACTIONS,
+                onTabSelected = onNavigateTab
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -69,11 +72,11 @@ fun TransactionScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 100.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Requirement 1: Calendar View (Top Section)
-                item {
+                // 1. Calendar: income / expense of every day this month. Tap a day to filter.
+                item(key = "calendar") {
                     CalendarView(
                         selectedMonth = uiState.selectedMonth,
                         selectedDate = uiState.selectedDate,
@@ -85,8 +88,8 @@ fun TransactionScreen(
                     )
                 }
 
-                // Requirement 2: Financial Summary (Middle Section)
-                item {
+                // 2. Monthly totals: income, expense, balance
+                item(key = "summary") {
                     Spacer(modifier = Modifier.height(4.dp))
                     FinancialSummaryCard(
                         income = uiState.monthlyIncome,
@@ -96,10 +99,24 @@ fun TransactionScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                 }
 
-                // Requirement 3: Transaction Records Grouped by Date (List Section)
-                val grouped = uiState.groupedTransactions
-                if (grouped.isEmpty()) {
-                    item {
+                // 3. Expense / Income categories with each transaction's description
+                item(key = "category_header") {
+                    CategoryListHeader(
+                        listType = uiState.listType,
+                        onListTypeChange = { viewModel.setListType(it) },
+                        filterBySelectedDate = uiState.filterBySelectedDate,
+                        selectedDate = uiState.selectedDate,
+                        selectedDateSummary = uiState.selectedDateSummary,
+                        visibleTotal = uiState.visibleTotal,
+                        onShowWholeMonth = { viewModel.showWholeMonth() }
+                    )
+                }
+
+                val groups = uiState.categoryGroups
+                if (groups.isEmpty()) {
+                    item(key = "empty") {
+                        val typeLabel = if (uiState.listType == CategoryType.INCOME) "income" else "expenses"
+                        val period = if (uiState.filterBySelectedDate) "on this date" else "this month"
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
@@ -107,38 +124,22 @@ fun TransactionScreen(
                                 .padding(vertical = 32.dp)
                         ) {
                             Text(
-                                text = "No transactions found for this month.",
+                                text = "No $typeLabel recorded $period.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
                     }
                 } else {
-                    grouped.forEach { (date, items) ->
-                        val dayIncome = items.filter { it.type == CategoryType.INCOME }.sumOf { it.amount }
-                        val dayExpense = items.filter { it.type == CategoryType.EXPENSE }.sumOf { Math.abs(it.amount) }
-
-                        item(key = "header_${date}") {
-                            TransactionGroupHeader(
-                                date = date,
-                                totalIncome = dayIncome,
-                                totalExpense = dayExpense
-                            )
-                        }
-
-                        items(items = items, key = { it.id }) { transaction ->
-                            TransactionItemCard(transaction = transaction)
-                        }
+                    items(items = groups, key = { "cat_${it.type}_${it.categoryName}" }) { group ->
+                        CategoryTransactionGroupCard(
+                            group = group,
+                            sectionTotal = uiState.visibleTotal
+                        )
                     }
                 }
             }
 
-            // Requirement 4: Bottom Navigation Bar with "Transactions" active and highlighted
-            AppBottomNavigationBar(
-                currentTab = NavTab.TRANSACTIONS,
-                onTabSelected = onNavigateTab,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
     }
 }
