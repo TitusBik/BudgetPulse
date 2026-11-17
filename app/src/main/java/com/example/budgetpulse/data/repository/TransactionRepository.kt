@@ -25,20 +25,12 @@ class TransactionRepository(
 
     // ---------- Transactions ----------
 
-    val allTransactions: Flow<List<TransactionItem>> = transactionDao.getAllTransactions()
-
     val transactionCount: Flow<Int> = transactionDao.getTransactionCount()
 
     val recordedDates: Flow<List<LocalDate>> = transactionDao.getRecordedDates()
 
     fun transactionsForMonth(month: YearMonth): Flow<List<TransactionItem>> =
         transactionDao.getTransactionsBetween(month.atDay(1), month.atEndOfMonth())
-
-    fun transactionsOnDate(date: LocalDate): Flow<List<TransactionItem>> =
-        transactionDao.getTransactionsOnDate(date)
-
-    fun totalForMonth(type: CategoryType, month: YearMonth): Flow<Double> =
-        transactionDao.getTotalByTypeBetween(type, month.atDay(1), month.atEndOfMonth())
 
     /**
      * Saves a transaction for [category]. Expenses are stored as negative numbers,
@@ -65,10 +57,6 @@ class TransactionRepository(
             )
         )
     }
-
-    suspend fun updateTransaction(item: TransactionItem) = transactionDao.updateTransaction(item)
-
-    suspend fun deleteTransaction(item: TransactionItem) = transactionDao.deleteTransaction(item)
 
     // ---------- Categories ----------
 
