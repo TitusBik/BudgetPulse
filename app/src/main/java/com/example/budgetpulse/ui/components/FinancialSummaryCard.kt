@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.budgetpulse.ui.theme.LocalAppCurrency
+import java.util.Locale
 
 @Composable
 fun FinancialSummaryCard(
@@ -27,6 +29,9 @@ fun FinancialSummaryCard(
     balance: Double,
     modifier: Modifier = Modifier
 ) {
+    val currency = LocalAppCurrency.current.symbol
+    fun money(value: Double) = "$currency${String.format(Locale.ENGLISH, "%,.2f", value)}"
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -45,7 +50,7 @@ fun FinancialSummaryCard(
             // Requirement 2: Income (Green)
             SummaryColumn(
                 label = "Income",
-                amountText = "RM${String.format("%,.2f", income)}",
+                amountText = money(income),
                 amountColor = Color(0xFF43A047), // Green
                 modifier = Modifier.weight(1f)
             )
@@ -53,7 +58,7 @@ fun FinancialSummaryCard(
             // Requirement 2: Expense (Red)
             SummaryColumn(
                 label = "Expense",
-                amountText = "RM${String.format("%,.2f", expense)}",
+                amountText = money(expense),
                 amountColor = Color(0xFFE53935), // Red
                 modifier = Modifier.weight(1f)
             )
@@ -61,7 +66,7 @@ fun FinancialSummaryCard(
             // Requirement 2: Balance (Bold Black / onSurface)
             SummaryColumn(
                 label = "Balance",
-                amountText = "RM${String.format("%,.2f", balance)}",
+                amountText = money(balance),
                 amountColor = MaterialTheme.colorScheme.onSurface, // Bold black
                 isBold = true,
                 modifier = Modifier.weight(1f)
@@ -75,8 +80,8 @@ private fun SummaryColumn(
     label: String,
     amountText: String,
     amountColor: Color,
-    isBold: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isBold: Boolean = false
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
