@@ -45,8 +45,8 @@ fun BudgetOverviewCard(
     totalBudget: Double,
     dailyAverage: Double,
     progressFraction: Float,
-    modifier: Modifier = Modifier,
-    totalSpent: Double = 0.0
+    totalSpent: Double,
+    modifier: Modifier = Modifier
 ) {
     val currency = LocalAppCurrency.current.symbol
     val hasBudget = totalBudget > 0
