@@ -14,8 +14,8 @@ data class ProfileData(
     val nickname: String = "Darrell",
     val profileImageUri: Uri? = null,
     val currentStreak: Int = 0,
-    val totalDays: Int = 926,
-    val transactionsCount: Int = 129,
+    val totalDays: Int = 0,
+    val transactionsCount: Int = 0, // filled from Room (TransactionDao.getTransactionCount)
     val isDarkMode: Boolean = false,
     val fontScale: Float = 1.0f, // 0.85f (Small), 1.0f (Normal), 1.15f (Large)
     val selectedCurrency: AppCurrency = AppCurrency.MYR
