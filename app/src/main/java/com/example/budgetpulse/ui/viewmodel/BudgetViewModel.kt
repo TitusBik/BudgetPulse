@@ -3,22 +3,28 @@ package com.example.budgetpulse.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.budgetpulse.data.local.TransactionDao
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.budgetpulse.data.model.BudgetViewMode
 import com.example.budgetpulse.data.model.CategoryBudget
-import com.example.budgetpulse.data.model.CategoryItem
 import com.example.budgetpulse.data.model.CategoryType
+import com.example.budgetpulse.data.model.toCategoryItem
+import com.example.budgetpulse.data.repository.TransactionRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.YearMonth
+import kotlin.math.abs
 
 data class BudgetUiState(
     val selectedMonth: YearMonth = YearMonth.now(),
-    val totalBudget: Double = 2500.0,
+    // 0.0 = user has not set a budget for any category yet
+    val totalBudget: Double = 0.0,
     val viewMode: BudgetViewMode = BudgetViewMode.PLAN,
     val categoryBudgets: List<CategoryBudget> = emptyList(),
     val editingCategoryBudget: CategoryBudget? = null
@@ -32,56 +38,54 @@ data class BudgetUiState(
     val dailyAverage: Double
         get() = if (daysInMonth > 0) totalBudget / daysInMonth else 0.0
 
+    val hasBudget: Boolean
+        get() = totalBudget > 0
+
     val progressFraction: Float
         get() = if (totalBudget > 0) (totalSpent / totalBudget).toFloat().coerceIn(0f, 1f) else 0f
 }
 
-class BudgetViewModel(private val transactionDao: TransactionDao) : ViewModel() {
+@OptIn(ExperimentalCoroutinesApi::class)
+class BudgetViewModel(private val repository: TransactionRepository) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(YearMonth.now())
     private val _viewMode = MutableStateFlow(BudgetViewMode.PLAN)
-    private val _allocatedBudgets = MutableStateFlow<Map<String, Double?>>(emptyMap())
     private val _editingCategoryBudget = MutableStateFlow<CategoryBudget?>(null)
 
-    private val allTransactions = transactionDao.getAllTransactions()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    private val monthTransactions = _selectedMonth.flatMapLatest { month ->
+        repository.transactionsForMonth(month)
+    }
 
-    private val defaultCategories = listOf(
-        CategoryItem("exp_1", "Housing & Utilities", CategoryType.EXPENSE, "home", 0xFFFFF3E0),
-        CategoryItem("exp_2", "Food & Drink", CategoryType.EXPENSE, "fastfood", 0xFFFFF8E1),
-        CategoryItem("exp_3", "Transportation", CategoryType.EXPENSE, "directions_car", 0xFFE3F2FD),
-        CategoryItem("exp_4", "Shopping", CategoryType.EXPENSE, "shopping_bag", 0xFFFFEBEE),
-        CategoryItem("exp_5", "Other", CategoryType.EXPENSE, "build", 0xFFE0F2F1)
-    )
+    init {
+        viewModelScope.launch { repository.ensureDefaultCategories() }
+    }
 
     val uiState: StateFlow<BudgetUiState> = combine(
         _selectedMonth,
         _viewMode,
-        _allocatedBudgets,
         _editingCategoryBudget,
-        allTransactions
-    ) { month, mode, allocMap, editing, transactions ->
-        val monthTransactions = transactions.filter { YearMonth.from(it.date) == month && it.type == CategoryType.EXPENSE }
+        repository.categoriesByType(CategoryType.EXPENSE), // same expense cards as Home page
+        monthTransactions
+    ) { month, mode, editing, expenseCategories, transactions ->
+        val expenses = transactions.filter { it.type == CategoryType.EXPENSE }
 
-        val categoryBudgetsList = defaultCategories.map { category ->
-            val spent = monthTransactions
-                .filter { it.categoryName.equals(category.name, ignoreCase = true) }
-                .sumOf { Math.abs(it.amount) }
-            val alloc = allocMap[category.id]
+        val categoryBudgetsList = expenseCategories.map { entity ->
+            val spent = expenses
+                .filter { it.categoryName.equals(entity.name, ignoreCase = true) }
+                .sumOf { abs(it.amount) }
             CategoryBudget(
-                category = category,
-                allocatedBudget = alloc,
+                category = entity.toCategoryItem(),
+                allocatedBudget = entity.monthlyBudget,
                 spentAmount = spent
             )
         }
 
+        // Total budget = sum of the limits the user set (0 when nothing is set yet)
+        val allocatedSum = categoryBudgetsList.sumOf { it.allocatedBudget ?: 0.0 }
+
         BudgetUiState(
             selectedMonth = month,
-            totalBudget = 2500.0,
+            totalBudget = allocatedSum,
             viewMode = mode,
             categoryBudgets = categoryBudgetsList,
             editingCategoryBudget = editing
@@ -112,20 +116,15 @@ class BudgetViewModel(private val transactionDao: TransactionDao) : ViewModel() 
         _editingCategoryBudget.value = null
     }
 
+    /** Saved to Room, so limits are kept after restarting the app. */
     fun updateAllocatedBudget(categoryId: String, newBudget: Double?) {
-        val current = _allocatedBudgets.value.toMutableMap()
-        current[categoryId] = newBudget
-        _allocatedBudgets.value = current
+        viewModelScope.launch { repository.updateCategoryBudget(categoryId, newBudget) }
         _editingCategoryBudget.value = null
     }
-}
 
-class BudgetViewModelFactory(private val transactionDao: TransactionDao) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(BudgetViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return BudgetViewModel(transactionDao) as T
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer { BudgetViewModel(transactionRepository()) }
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
