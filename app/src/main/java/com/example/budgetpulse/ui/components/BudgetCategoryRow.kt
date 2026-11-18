@@ -1,5 +1,6 @@
 package com.example.budgetpulse.ui.components
 
+import com.example.budgetpulse.ui.theme.LocalAppCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -80,12 +81,13 @@ fun BudgetCategoryRow(
                 )
             }
 
+            val currency = LocalAppCurrency.current.symbol
             val displayValue = when (viewMode) {
                 BudgetViewMode.PLAN -> {
-                    item.allocatedBudget?.let { "RM${String.format(Locale.ENGLISH, "%,.2f", it)}" } ?: "None"
+                    item.allocatedBudget?.let { "$currency${String.format(Locale.ENGLISH, "%,.2f", it)}" } ?: "None"
                 }
                 BudgetViewMode.REMAIN -> {
-                    item.allocatedBudget?.let { "RM${String.format(Locale.ENGLISH, "%,.2f", item.remainingAmount)}" } ?: "None"
+                    item.allocatedBudget?.let { "$currency${String.format(Locale.ENGLISH, "%,.2f", item.remainingAmount)}" } ?: "None"
                 }
             }
 

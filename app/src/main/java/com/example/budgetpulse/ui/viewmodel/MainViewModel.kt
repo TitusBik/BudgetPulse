@@ -1,5 +1,6 @@
 package com.example.budgetpulse.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,7 @@ import com.example.budgetpulse.data.model.CategoryType
 import com.example.budgetpulse.data.model.DefaultCategories
 import com.example.budgetpulse.data.model.toCategoryItem
 import com.example.budgetpulse.data.repository.TransactionRepository
+import com.example.budgetpulse.data.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +32,10 @@ data class UiState(
     val currentMonth: YearMonth = YearMonth.now()
 )
 
-class MainViewModel(private val repository: TransactionRepository) : ViewModel() {
+class MainViewModel(
+    private val repository: TransactionRepository,
+    private val preferencesRepository: UserPreferencesRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -49,13 +54,14 @@ class MainViewModel(private val repository: TransactionRepository) : ViewModel()
         viewModelScope.launch {
             combine(
                 repository.categories,
-                repository.transactionsForMonth(month)
-            ) { categories, monthTransactions ->
+                repository.transactionsForMonth(month),
+                preferencesRepository.userPreferences
+            ) { categories, monthTransactions, prefs ->
                 categories.map { entity ->
                     val total = monthTransactions
                         .filter { it.type == entity.type && it.categoryName.equals(entity.name, ignoreCase = true) }
                         .sumOf { abs(it.amount) }
-                    entity.toCategoryItem(amount = formatRm(total))
+                    entity.toCategoryItem(amount = formatMoney(prefs.currency.symbol, total))
                 }
             }.collect { active ->
                 val presetNames = DefaultCategories.presets.map { it.name.lowercase() to it.type }.toSet()
@@ -77,6 +83,7 @@ class MainViewModel(private val repository: TransactionRepository) : ViewModel()
 
     fun toggleEditMode() {
         _uiState.update { it.copy(isEditMode = !it.isEditMode) }
+        Log.d(TAG, "Edit mode -> ${_uiState.value.isEditMode}")
     }
 
     // ---------- Categories (saved in Room) ----------
@@ -123,6 +130,7 @@ class MainViewModel(private val repository: TransactionRepository) : ViewModel()
     // ---------- Add transaction (today) ----------
 
     fun startAddingTransaction(category: CategoryItem) {
+        Log.d(TAG, "Open Add Transaction dialog for '${category.name}'")
         _uiState.update { it.copy(addingTransactionCategory = category) }
     }
 
@@ -132,7 +140,10 @@ class MainViewModel(private val repository: TransactionRepository) : ViewModel()
 
     /** Saves an expense / income for TODAY under [category]. Description is optional. */
     fun saveTransaction(category: CategoryItem, amount: Double, description: String) {
-        if (amount <= 0.0) return
+        if (amount <= 0.0) {
+            Log.w(TAG, "Rejected transaction with invalid amount: $amount")
+            return
+        }
         viewModelScope.launch {
             repository.addTransaction(category, amount, description)
         }
@@ -140,8 +151,10 @@ class MainViewModel(private val repository: TransactionRepository) : ViewModel()
     }
 
     companion object {
+        private const val TAG = "MainViewModel"
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { MainViewModel(transactionRepository()) }
+            initializer { MainViewModel(transactionRepository(), userPreferencesRepository()) }
         }
     }
 }

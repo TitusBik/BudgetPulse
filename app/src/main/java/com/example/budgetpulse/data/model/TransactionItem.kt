@@ -7,7 +7,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
 
 @Suppress("SpellCheckingInspection") // table name kept as-is so the existing schema does not change
 @Entity(tableName = "transactionitem_table")
@@ -39,15 +38,8 @@ data class TransactionItem(
     @ColumnInfo(name = "note")
     val note: String = ""
 ) {
-    val formattedAmount: String
-        get() = if (type == CategoryType.INCOME) {
-            "+RM${String.format(Locale.ENGLISH, "%,.2f", abs(amount))}"
-        } else {
-            "-RM${String.format(Locale.ENGLISH, "%,.2f", abs(amount))}"
-        }
-
     val formattedTime: String
-        get() = time.format(DateTimeFormatter.ofPattern("HH:mm"))
+        get() = time.format(DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH))
 }
 
 data class DailySummary(

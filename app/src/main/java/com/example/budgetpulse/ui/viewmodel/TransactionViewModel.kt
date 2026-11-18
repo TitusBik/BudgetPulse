@@ -1,5 +1,6 @@
 package com.example.budgetpulse.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -14,11 +15,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 import kotlin.math.abs
+
+/** Which period the summary card + category list show. */
+enum class SummaryPeriod(val label: String) {
+    DAY("Daily"),
+    WEEK("Weekly"),
+    MONTH("Monthly")
+}
 
 /** One category block in the bottom list of the Transactions page. */
 data class CategoryTransactionGroup(
@@ -30,59 +42,87 @@ data class CategoryTransactionGroup(
     val transactions: List<TransactionItem>
 )
 
-data class TransactionUiState(
-    val selectedMonth: YearMonth = YearMonth.now(),
-    val selectedDate: LocalDate = LocalDate.now(),
-    // All transactions of selectedMonth (loaded from Room by date range)
-    val transactions: List<TransactionItem> = emptyList(),
-    // true -> bottom list only shows the tapped calendar date
-    val filterBySelectedDate: Boolean = false,
-    // Expense / Income tab for the bottom category list
-    val listType: CategoryType = CategoryType.EXPENSE
-) {
-    val monthlyIncome: Double
-        get() = transactions.filter { it.type == CategoryType.INCOME }.sumOf { abs(it.amount) }
+/** Pure calculation helpers (easy to unit test later). */
+object TransactionCalculations {
 
-    val monthlyExpense: Double
-        get() = transactions.filter { it.type == CategoryType.EXPENSE }.sumOf { abs(it.amount) }
+    fun weekStart(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-    val monthlyBalance: Double
-        get() = monthlyIncome - monthlyExpense
+    fun weekEnd(date: LocalDate): LocalDate = weekStart(date).plusDays(6)
 
-    /** Income / expense per day -> shown in each calendar cell. */
-    val dailySummaries: Map<LocalDate, DailySummary>
-        get() = transactions.groupBy { it.date }.mapValues { (date, items) ->
-            DailySummary(
-                date = date,
-                totalIncome = items.filter { it.type == CategoryType.INCOME }.sumOf { abs(it.amount) },
-                totalExpense = items.filter { it.type == CategoryType.EXPENSE }.sumOf { abs(it.amount) }
-            )
+    fun totalIncome(items: List<TransactionItem>): Double =
+        items.filter { it.type == CategoryType.INCOME }.sumOf { abs(it.amount) }
+
+    fun totalExpense(items: List<TransactionItem>): Double =
+        items.filter { it.type == CategoryType.EXPENSE }.sumOf { abs(it.amount) }
+
+    fun balance(items: List<TransactionItem>): Double = totalIncome(items) - totalExpense(items)
+
+    fun dailySummaries(items: List<TransactionItem>): Map<LocalDate, DailySummary> =
+        items.groupBy { it.date }.mapValues { (date, dayItems) ->
+            DailySummary(date, totalIncome(dayItems), totalExpense(dayItems))
         }
 
-    val selectedDateSummary: DailySummary
-        get() = dailySummaries[selectedDate] ?: DailySummary(selectedDate)
-
-    /** Transactions used by the bottom list (whole month, or just the selected date). */
-    val visibleTransactions: List<TransactionItem>
-        get() = if (filterBySelectedDate) transactions.filter { it.date == selectedDate } else transactions
-
-    /** Bottom list: transactions grouped by category, biggest total first. */
-    val categoryGroups: List<CategoryTransactionGroup>
-        get() = visibleTransactions
-            .filter { it.type == listType }
+    fun groupByCategory(items: List<TransactionItem>, type: CategoryType): List<CategoryTransactionGroup> =
+        items
+            .filter { it.type == type }
             .groupBy { it.categoryName.lowercase() }
-            .map { (_, items) ->
-                val first = items.first()
+            .map { (_, groupItems) ->
+                val first = groupItems.first()
                 CategoryTransactionGroup(
                     categoryName = first.categoryName,
                     iconName = first.categoryIconName,
                     colorHex = first.categoryColorHex,
                     type = first.type,
-                    total = items.sumOf { abs(it.amount) },
-                    transactions = items.sortedWith(compareByDescending<TransactionItem> { it.date }.thenByDescending { it.time })
+                    total = groupItems.sumOf { abs(it.amount) },
+                    transactions = groupItems.sortedWith(
+                        compareByDescending<TransactionItem> { it.date }.thenByDescending { it.time }
+                    )
                 )
             }
             .sortedByDescending { it.total }
+}
+
+data class TransactionUiState(
+    val selectedMonth: YearMonth = YearMonth.now(),
+    val selectedDate: LocalDate = LocalDate.now(),
+    val period: SummaryPeriod = SummaryPeriod.MONTH,
+    val listType: CategoryType = CategoryType.EXPENSE,
+    // Everything loaded from Room: the shown month + the full week of the selected date
+    val loadedTransactions: List<TransactionItem> = emptyList()
+) {
+    /** Transactions of the calendar month (for calendar cells + monthly totals). */
+    val monthTransactions: List<TransactionItem>
+        get() = loadedTransactions.filter { YearMonth.from(it.date) == selectedMonth }
+
+    val periodStart: LocalDate
+        get() = when (period) {
+            SummaryPeriod.DAY -> selectedDate
+            SummaryPeriod.WEEK -> TransactionCalculations.weekStart(selectedDate)
+            SummaryPeriod.MONTH -> selectedMonth.atDay(1)
+        }
+
+    val periodEnd: LocalDate
+        get() = when (period) {
+            SummaryPeriod.DAY -> selectedDate
+            SummaryPeriod.WEEK -> TransactionCalculations.weekEnd(selectedDate)
+            SummaryPeriod.MONTH -> selectedMonth.atEndOfMonth()
+        }
+
+    /** Transactions inside the chosen Daily / Weekly / Monthly period. */
+    val periodTransactions: List<TransactionItem>
+        get() = loadedTransactions.filter { !it.date.isBefore(periodStart) && !it.date.isAfter(periodEnd) }
+
+    val periodIncome: Double get() = TransactionCalculations.totalIncome(periodTransactions)
+    val periodExpense: Double get() = TransactionCalculations.totalExpense(periodTransactions)
+    val periodBalance: Double get() = TransactionCalculations.balance(periodTransactions)
+
+    /** Income / expense per day -> shown in each calendar cell. */
+    val dailySummaries: Map<LocalDate, DailySummary>
+        get() = TransactionCalculations.dailySummaries(monthTransactions)
+
+    /** Bottom list: period transactions grouped by category, biggest total first. */
+    val categoryGroups: List<CategoryTransactionGroup>
+        get() = TransactionCalculations.groupByCategory(periodTransactions, listType)
 
     val visibleTotal: Double
         get() = categoryGroups.sumOf { it.total }
@@ -93,27 +133,38 @@ class TransactionViewModel(private val repository: TransactionRepository) : View
 
     private val _selectedMonth = MutableStateFlow(YearMonth.now())
     private val _selectedDate = MutableStateFlow(LocalDate.now())
-    private val _filterBySelectedDate = MutableStateFlow(false)
+    private val _period = MutableStateFlow(SummaryPeriod.MONTH)
     private val _listType = MutableStateFlow(CategoryType.EXPENSE)
 
-    // Re-queries Room whenever the month changes
-    private val monthTransactions = _selectedMonth.flatMapLatest { month ->
-        repository.transactionsForMonth(month)
+    // Query range = whole month + whole week of the selected date (a week can cross months)
+    private val loadedTransactions = combine(_selectedMonth, _selectedDate) { month, date ->
+        val start = minOf(month.atDay(1), TransactionCalculations.weekStart(date))
+        val end = maxOf(month.atEndOfMonth(), TransactionCalculations.weekEnd(date))
+        start to end
     }
+        .distinctUntilChanged()
+        .flatMapLatest { (start, end) ->
+            Log.d(TAG, "Querying Room for transactions $start .. $end")
+            repository.transactionsBetween(start, end)
+        }
+        .map { list ->
+            Log.d(TAG, "Loaded ${list.size} transactions")
+            list
+        }
 
     val uiState: StateFlow<TransactionUiState> = combine(
         _selectedMonth,
         _selectedDate,
-        _filterBySelectedDate,
+        _period,
         _listType,
-        monthTransactions
-    ) { month, date, filterByDate, listType, transactions ->
+        loadedTransactions
+    ) { month, date, period, listType, transactions ->
         TransactionUiState(
             selectedMonth = month,
             selectedDate = date,
-            transactions = transactions,
-            filterBySelectedDate = filterByDate,
-            listType = listType
+            period = period,
+            listType = listType,
+            loadedTransactions = transactions
         )
     }.stateIn(
         scope = viewModelScope,
@@ -121,43 +172,46 @@ class TransactionViewModel(private val repository: TransactionRepository) : View
         initialValue = TransactionUiState()
     )
 
-    /** Tapping a calendar day shows only that day's transactions in the bottom list. */
+    /** Tapping a calendar day switches the summary to that day. */
     fun selectDate(date: LocalDate) {
+        Log.d(TAG, "Date selected: $date")
         _selectedDate.value = date
         _selectedMonth.value = YearMonth.from(date)
-        _filterBySelectedDate.value = true
+        if (_period.value == SummaryPeriod.MONTH) _period.value = SummaryPeriod.DAY
     }
 
-    fun showWholeMonth() {
-        _filterBySelectedDate.value = false
+    fun setPeriod(period: SummaryPeriod) {
+        Log.d(TAG, "Summary period -> $period")
+        _period.value = period
     }
 
     fun setListType(type: CategoryType) {
+        Log.d(TAG, "Category list type -> $type")
         _listType.value = type
     }
 
-    fun previousMonth() {
-        val prev = _selectedMonth.value.minusMonths(1)
-        _selectedMonth.value = prev
-        _selectedDate.value = prev.atDay(1)
-        _filterBySelectedDate.value = false
-    }
+    fun previousMonth() = changeMonth(_selectedMonth.value.minusMonths(1))
 
-    fun nextMonth() {
-        val next = _selectedMonth.value.plusMonths(1)
-        _selectedMonth.value = next
-        _selectedDate.value = next.atDay(1)
-        _filterBySelectedDate.value = false
+    fun nextMonth() = changeMonth(_selectedMonth.value.plusMonths(1))
+
+    private fun changeMonth(month: YearMonth) {
+        Log.d(TAG, "Month changed -> $month")
+        _selectedMonth.value = month
+        _selectedDate.value = month.atDay(1)
+        _period.value = SummaryPeriod.MONTH
     }
 
     fun goToToday() {
         val today = LocalDate.now()
+        Log.d(TAG, "Jump to today: $today")
         _selectedDate.value = today
         _selectedMonth.value = YearMonth.from(today)
-        _filterBySelectedDate.value = false
+        _period.value = SummaryPeriod.DAY
     }
 
     companion object {
+        private const val TAG = "TransactionViewModel"
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer { TransactionViewModel(transactionRepository()) }
         }

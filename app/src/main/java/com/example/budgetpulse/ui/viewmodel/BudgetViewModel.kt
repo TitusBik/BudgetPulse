@@ -1,5 +1,6 @@
 package com.example.budgetpulse.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -95,14 +96,17 @@ class BudgetViewModel(private val repository: TransactionRepository) : ViewModel
 
     fun previousMonth() {
         _selectedMonth.value = _selectedMonth.value.minusMonths(1)
+        Log.d(TAG, "Budget month -> ${_selectedMonth.value}")
     }
 
     fun nextMonth() {
         _selectedMonth.value = _selectedMonth.value.plusMonths(1)
+        Log.d(TAG, "Budget month -> ${_selectedMonth.value}")
     }
 
     fun setViewMode(mode: BudgetViewMode) {
         _viewMode.value = mode
+        Log.d(TAG, "Budget view mode -> $mode")
     }
 
     fun startEditingBudget(item: CategoryBudget) {
@@ -115,11 +119,14 @@ class BudgetViewModel(private val repository: TransactionRepository) : ViewModel
 
     /** Saved to Room, so limits are kept after restarting the app. */
     fun updateAllocatedBudget(categoryId: String, newBudget: Double?) {
+        Log.d(TAG, "Set budget for $categoryId -> $newBudget")
         viewModelScope.launch { repository.updateCategoryBudget(categoryId, newBudget) }
         _editingCategoryBudget.value = null
     }
 
     companion object {
+        private const val TAG = "BudgetViewModel"
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer { BudgetViewModel(transactionRepository()) }
         }

@@ -47,6 +47,9 @@ fun AppBottomNavigationBar(
     onTabSelected: (NavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // On tablets / landscape the NavigationRail (AdaptiveNavigation.kt) is shown instead
+    if (useNavigationRail()) return
+
     Box(
         modifier = modifier
             .fillMaxWidth()

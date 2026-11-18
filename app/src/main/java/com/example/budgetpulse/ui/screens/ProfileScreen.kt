@@ -1,5 +1,10 @@
 package com.example.budgetpulse.ui.screens
 
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,8 +66,10 @@ import com.example.budgetpulse.ui.viewmodel.ProfileViewModel
 @Composable
 fun ProfileScreen(
     onNavigateTab: (NavTab) -> Unit,
-    viewModel: ProfileViewModel
+    viewModel: ProfileViewModel,
+    onRestartSetup: () -> Unit = {}
 ) {
+    var showRestartDialog by remember { mutableStateOf(false) }
     val state by viewModel.profileState.collectAsState()
     var showEditNicknameDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -86,6 +93,8 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = 720.dp) // tablets: keep content readable instead of stretched
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -261,13 +270,22 @@ fun ProfileScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                ProfileMenuRow(
-                    icon = Icons.Default.Settings,
-                    iconTint = Color(0xFFFF8F00),
-                    title = "Settings",
-                    badge = "${state.selectedCurrency.symbol} • ${if (state.isDarkMode) "Dark" else "Light"}",
-                    onClick = { showSettingsDialog = true }
-                )
+                Column {
+                    ProfileMenuRow(
+                        icon = Icons.Default.Settings,
+                        iconTint = Color(0xFFFF8F00),
+                        title = "Settings",
+                        badge = "${state.selectedCurrency.symbol} • ${if (state.isDarkMode) "Dark" else "Light"}",
+                        onClick = { showSettingsDialog = true }
+                    )
+                    // Clears the onboarding flag in DataStore -> app redirects to the Setup screen
+                    ProfileMenuRow(
+                        icon = Icons.Default.RestartAlt,
+                        iconTint = Color(0xFFE53935),
+                        title = "Restart Setup",
+                        onClick = { showRestartDialog = true }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -281,6 +299,24 @@ fun ProfileScreen(
                 onSave = {
                     viewModel.updateNickname(it)
                     showEditNicknameDialog = false
+                }
+            )
+        }
+
+        // Restart Setup confirmation
+        if (showRestartDialog) {
+            AlertDialog(
+                onDismissRequest = { showRestartDialog = false },
+                title = { Text("Restart setup?") },
+                text = { Text("You will go back to the setup screen. Your transactions are kept.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showRestartDialog = false
+                        onRestartSetup()
+                    }) { Text("Restart") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRestartDialog = false }) { Text("Cancel") }
                 }
             )
         }

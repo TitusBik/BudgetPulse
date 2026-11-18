@@ -1,5 +1,7 @@
 package com.example.budgetpulse.ui.components
 
+import java.util.Locale
+import com.example.budgetpulse.ui.theme.LocalAppCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,7 +79,7 @@ fun CalendarView(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                        text = selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -209,10 +211,11 @@ private fun CalendarDayCell(
             // Requirement 1: Dates containing transaction records display daily total amount directly below date number
             if (dailySummary != null && (dailySummary.totalIncome > 0 || dailySummary.totalExpense > 0)) {
                 val isPositive = dailySummary.netTotal >= 0
+                val currency = LocalAppCurrency.current.symbol
                 val amountText = if (isPositive) {
-                    if (dailySummary.totalIncome > 0) "+RM${dailySummary.totalIncome.toInt()}" else "RM0"
+                    if (dailySummary.totalIncome > 0) "+$currency${dailySummary.totalIncome.toInt()}" else "${currency}0"
                 } else {
-                    "-RM${dailySummary.totalExpense.toInt()}"
+                    "-$currency${dailySummary.totalExpense.toInt()}"
                 }
 
                 val amountColor = if (isSelected) {

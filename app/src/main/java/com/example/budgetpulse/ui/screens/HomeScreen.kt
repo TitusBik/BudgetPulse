@@ -170,7 +170,7 @@ fun HomeScreen(
 
                 // Requirement 4: LazyVerticalGrid for card layout on homepage
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3), // 3 columns for neat card presentation
+                    columns = GridCells.Adaptive(minSize = 110.dp), // 3 columns on phones, more on tablets / landscape
                     contentPadding = PaddingValues(bottom = if (uiState.isEditMode) 100.dp else 16.dp, top = 8.dp, start = 8.dp, end = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

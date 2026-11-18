@@ -1,6 +1,7 @@
 package com.example.budgetpulse.ui.viewmodel
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,33 +10,50 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.budgetpulse.data.model.AppCurrency
 import com.example.budgetpulse.data.model.ProfileData
 import com.example.budgetpulse.data.repository.TransactionRepository
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.example.budgetpulse.data.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-class ProfileViewModel(repository: TransactionRepository) : ViewModel() {
-
-    private val _profileState = MutableStateFlow(ProfileData())
+class ProfileViewModel(
+    transactionRepository: TransactionRepository,
+    private val preferencesRepository: UserPreferencesRepository
+) : ViewModel() {
 
     /**
-     * Profile settings + live stats from Room:
+     * null  = DataStore not loaded yet (show nothing / splash)
+     * false = first launch -> Setup screen
+     * true  = already set up -> Welcome screen
+     * Used by the NavHost for dynamic navigation.
+     */
+    val isOnboarded: StateFlow<Boolean?> = preferencesRepository.userPreferences
+        .map { it.onboardingComplete }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Profile = saved preferences (DataStore) + live stats (Room):
      *  - transactionsCount: number of transactions the user has recorded
      *  - totalDays: number of different days with at least one record
      *  - currentStreak: consecutive days with a record, up to today (or yesterday)
      */
     val profileState: StateFlow<ProfileData> = combine(
-        _profileState,
-        repository.transactionCount,
-        repository.recordedDates
-    ) { profile, count, dates ->
-        profile.copy(
-            transactionsCount = count,
+        preferencesRepository.userPreferences,
+        transactionRepository.transactionCount,
+        transactionRepository.recordedDates
+    ) { prefs, count, dates ->
+        ProfileData(
+            nickname = prefs.nickname.ifBlank { "User" },
+            profileImageUri = prefs.profileImageUri?.let { Uri.parse(it) },
+            currentStreak = calculateStreak(dates),
             totalDays = dates.size,
-            currentStreak = calculateStreak(dates)
+            transactionsCount = count,
+            isDarkMode = prefs.isDarkMode,
+            fontScale = prefs.fontScale,
+            selectedCurrency = prefs.currency
         )
     }.stateIn(
         scope = viewModelScope,
@@ -60,31 +78,49 @@ class ProfileViewModel(repository: TransactionRepository) : ViewModel() {
         return streak
     }
 
+    // ---------- Setup (first launch) ----------
+
+    fun completeSetup(nickname: String, currency: AppCurrency) {
+        Log.d(TAG, "completeSetup(nickname=$nickname, currency=$currency)")
+        viewModelScope.launch { preferencesRepository.completeOnboarding(nickname, currency) }
+    }
+
+    fun restartSetup() {
+        Log.d(TAG, "restartSetup()")
+        viewModelScope.launch { preferencesRepository.resetOnboarding() }
+    }
+
+    // ---------- Settings (all saved to DataStore) ----------
+
     fun updateNickname(newName: String) {
         if (newName.isNotBlank()) {
-            _profileState.update { it.copy(nickname = newName.trim()) }
+            viewModelScope.launch { preferencesRepository.updateNickname(newName) }
         }
     }
 
     fun updateProfileImage(uri: Uri?) {
-        _profileState.update { it.copy(profileImageUri = uri) }
+        viewModelScope.launch { preferencesRepository.updateProfileImage(uri) }
     }
 
     fun toggleTheme(isDark: Boolean) {
-        _profileState.update { it.copy(isDarkMode = isDark) }
+        viewModelScope.launch { preferencesRepository.updateDarkMode(isDark) }
     }
 
     fun updateFontScale(scale: Float) {
-        _profileState.update { it.copy(fontScale = scale) }
+        viewModelScope.launch { preferencesRepository.updateFontScale(scale) }
     }
 
     fun updateCurrency(currency: AppCurrency) {
-        _profileState.update { it.copy(selectedCurrency = currency) }
+        viewModelScope.launch { preferencesRepository.updateCurrency(currency) }
     }
 
     companion object {
+        private const val TAG = "ProfileViewModel"
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { ProfileViewModel(transactionRepository()) }
+            initializer {
+                ProfileViewModel(transactionRepository(), userPreferencesRepository())
+            }
         }
     }
 }

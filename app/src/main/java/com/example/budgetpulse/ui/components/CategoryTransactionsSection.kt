@@ -1,6 +1,7 @@
 package com.example.budgetpulse.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -36,11 +34,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.budgetpulse.data.model.CategoryIcons
 import com.example.budgetpulse.data.model.CategoryType
-import com.example.budgetpulse.data.model.DailySummary
 import com.example.budgetpulse.data.model.TransactionItem
 import com.example.budgetpulse.ui.theme.LocalAppCurrency
 import com.example.budgetpulse.ui.viewmodel.CategoryTransactionGroup
-import java.time.LocalDate
+import com.example.budgetpulse.ui.viewmodel.SummaryPeriod
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
@@ -51,27 +48,62 @@ private val ExpenseRed = Color(0xFFE53935)
 private fun money(symbol: String, value: Double) =
     "$symbol${String.format(Locale.ENGLISH, "%,.2f", value)}"
 
-/** Expense / Income switch + "showing date X" chip above the category list. */
+/** Daily / Weekly / Monthly selector shown above the summary card. */
+@Composable
+fun SummaryPeriodSelector(
+    selected: SummaryPeriod,
+    onSelected: (SummaryPeriod) -> Unit,
+    rangeLabel: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SummaryPeriod.entries.forEachIndexed { index, period ->
+                SegmentedButton(
+                    selected = selected == period,
+                    onClick = { onSelected(period) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = SummaryPeriod.entries.size)
+                ) { Text(period.label) }
+            }
+        }
+        Text(
+            text = rangeLabel,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** Expense / Income switch above the category list. */
 @Composable
 fun CategoryListHeader(
     listType: CategoryType,
     onListTypeChange: (CategoryType) -> Unit,
-    filterBySelectedDate: Boolean,
-    selectedDate: LocalDate,
-    selectedDateSummary: DailySummary,
     visibleTotal: Double,
-    onShowWholeMonth: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val symbol = LocalAppCurrency.current.symbol
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "By Category",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "By Category",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = money(symbol, visibleTotal),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (listType == CategoryType.INCOME) IncomeGreen else ExpenseRed
+            )
+        }
 
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             SegmentedButton(
@@ -86,50 +118,11 @@ fun CategoryListHeader(
             ) { Text("Income") }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            if (filterBySelectedDate) {
-                // Specific date selected on the calendar
-                AssistChip(
-                    onClick = onShowWholeMonth,
-                    label = {
-                        Text(selectedDate.format(DateTimeFormatter.ofPattern("EEE, dd MMM", Locale.ENGLISH)))
-                    },
-                    trailingIcon = {
-                        Icon(Icons.Default.Close, contentDescription = "Show whole month", modifier = Modifier.size(16.dp))
-                    }
-                )
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "IN ${money(symbol, selectedDateSummary.totalIncome)}",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = IncomeGreen
-                    )
-                    Text(
-                        text = "EX ${money(symbol, selectedDateSummary.totalExpense)}",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = ExpenseRed
-                    )
-                }
-            } else {
-                Text(
-                    text = "Whole month • tap a date to filter",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = money(symbol, visibleTotal),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (listType == CategoryType.INCOME) IncomeGreen else ExpenseRed
-                )
-            }
-        }
+        Text(
+            text = "Tap a transaction to edit or delete it",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -138,6 +131,7 @@ fun CategoryListHeader(
 fun CategoryTransactionGroupCard(
     group: CategoryTransactionGroup,
     sectionTotal: Double,
+    onTransactionClick: (TransactionItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val symbol = LocalAppCurrency.current.symbol
@@ -207,19 +201,31 @@ fun CategoryTransactionGroupCard(
                 if (index > 0) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 }
-                CategoryTransactionRow(transaction = transaction, symbol = symbol, accent = accent)
+                CategoryTransactionRow(
+                    transaction = transaction,
+                    symbol = symbol,
+                    accent = accent,
+                    onClick = { onTransactionClick(transaction) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun CategoryTransactionRow(transaction: TransactionItem, symbol: String, accent: Color) {
+private fun CategoryTransactionRow(
+    transaction: TransactionItem,
+    symbol: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
     val dateLabel = transaction.date.format(DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH))
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClickLabel = "Edit transaction") { onClick() }
+            .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {

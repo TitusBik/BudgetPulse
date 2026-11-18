@@ -1,5 +1,6 @@
 package com.example.budgetpulse.data.repository
 
+import android.util.Log
 import com.example.budgetpulse.data.local.CategoryDao
 import com.example.budgetpulse.data.local.TransactionDao
 import com.example.budgetpulse.data.model.CategoryEntity
@@ -32,6 +33,11 @@ class TransactionRepository(
     fun transactionsForMonth(month: YearMonth): Flow<List<TransactionItem>> =
         transactionDao.getTransactionsBetween(month.atDay(1), month.atEndOfMonth())
 
+    fun transactionsBetween(startDate: LocalDate, endDate: LocalDate): Flow<List<TransactionItem>> =
+        transactionDao.getTransactionsBetween(startDate, endDate)
+
+    fun transactionById(id: Int): Flow<TransactionItem?> = transactionDao.getTransactionById(id)
+
     /**
      * Saves a transaction for [category]. Expenses are stored as negative numbers,
      * income as positive, so the existing formatting code keeps working.
@@ -44,7 +50,7 @@ class TransactionRepository(
         time: LocalTime = LocalTime.now().withNano(0)
     ) {
         val signedAmount = if (category.type == CategoryType.EXPENSE) -abs(amount) else abs(amount)
-        transactionDao.insertTransaction(
+        val newId = transactionDao.insertTransaction(
             TransactionItem(
                 categoryName = category.name,
                 categoryIconName = category.iconName,
@@ -56,6 +62,17 @@ class TransactionRepository(
                 note = description.trim()
             )
         )
+        Log.i(TAG, "Inserted transaction #$newId: ${category.type} ${category.name} amount=$signedAmount on $date")
+    }
+
+    suspend fun updateTransaction(item: TransactionItem) {
+        transactionDao.updateTransaction(item)
+        Log.i(TAG, "Updated transaction #${item.id}: amount=${item.amount}, date=${item.date}, note='${item.note}'")
+    }
+
+    suspend fun deleteTransaction(item: TransactionItem) {
+        transactionDao.deleteTransaction(item)
+        Log.i(TAG, "Deleted transaction #${item.id} (${item.categoryName})")
     }
 
     // ---------- Categories ----------
@@ -68,6 +85,7 @@ class TransactionRepository(
     /** Inserts the 5 expense + 1 income default cards the very first time the app runs. */
     suspend fun ensureDefaultCategories() {
         if (categoryDao.getCategoryCount() == 0) {
+            Log.i(TAG, "First run: inserting ${DefaultCategories.active.size} default categories")
             categoryDao.insertAll(
                 DefaultCategories.active.mapIndexed { index, item -> item.toEntity(sortOrder = index.toLong()) }
             )
@@ -76,15 +94,28 @@ class TransactionRepository(
 
     /** Returns false if a category with the same name and type already exists. */
     suspend fun addCategory(category: CategoryItem): Boolean {
-        if (categoryDao.categoryExists(category.name, category.type)) return false
+        if (categoryDao.categoryExists(category.name, category.type)) {
+            Log.w(TAG, "Category '${category.name}' (${category.type}) already exists, skipped")
+            return false
+        }
         categoryDao.insertCategory(
             category.copy(id = UUID.randomUUID().toString(), isDefault = false).toEntity()
         )
+        Log.i(TAG, "Inserted category '${category.name}' (${category.type})")
         return true
     }
 
-    suspend fun deleteCategory(categoryId: String) = categoryDao.deleteCategoryById(categoryId)
+    suspend fun deleteCategory(categoryId: String) {
+        categoryDao.deleteCategoryById(categoryId)
+        Log.i(TAG, "Deleted category $categoryId")
+    }
 
-    suspend fun updateCategoryBudget(categoryId: String, budget: Double?) =
+    suspend fun updateCategoryBudget(categoryId: String, budget: Double?) {
         categoryDao.updateMonthlyBudget(categoryId, budget)
+        Log.i(TAG, "Updated monthly budget of category $categoryId to $budget")
+    }
+
+    companion object {
+        private const val TAG = "BudgetPulseDatabase"
+    }
 }
