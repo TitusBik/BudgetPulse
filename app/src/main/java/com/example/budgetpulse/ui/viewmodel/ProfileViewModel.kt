@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 class ProfileViewModel(
-    transactionRepository: TransactionRepository,
+    private val transactionRepository: TransactionRepository,
     private val preferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
@@ -85,9 +85,17 @@ class ProfileViewModel(
         viewModelScope.launch { preferencesRepository.completeOnboarding(nickname, currency) }
     }
 
+    /**
+     * Wipes ALL data (Room + DataStore) and sends the user back to Setup.
+     * Room is cleared first; clearing DataStore last flips onboarding to false,
+     * which makes the NavHost redirect to the Setup screen.
+     */
     fun restartSetup() {
-        Log.d(TAG, "restartSetup()")
-        viewModelScope.launch { preferencesRepository.resetOnboarding() }
+        Log.d(TAG, "restartSetup(): wiping all data")
+        viewModelScope.launch {
+            transactionRepository.clearAllData()
+            preferencesRepository.clearAll()
+        }
     }
 
     // ---------- Settings (all saved to DataStore) ----------

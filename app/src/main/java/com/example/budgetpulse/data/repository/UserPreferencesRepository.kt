@@ -33,9 +33,17 @@ private val Context.userPreferencesDataStore: DataStore<Preferences> by preferen
     name = "user_preferences"
 )
 
-class UserPreferencesRepository(private val context: Context) {
+/**
+ * [dataStore] is injected so unit tests can pass a DataStore backed by a temporary file.
+ * [context] is only needed to keep access to the picked profile photo (null in tests).
+ */
+class UserPreferencesRepository(
+    private val dataStore: DataStore<Preferences>,
+    private val context: Context? = null
+) {
 
-    private val dataStore = context.userPreferencesDataStore
+    /** Used by the app (AppContainer): the real DataStore file on the phone. */
+    constructor(context: Context) : this(context.userPreferencesDataStore, context)
 
     private object Keys {
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
@@ -80,6 +88,12 @@ class UserPreferencesRepository(private val context: Context) {
         Log.i(TAG, "Onboarding completed for '$nickname' with currency ${currency.name}")
     }
 
+    /** Removes every saved preference (nickname, photo, theme, font, currency, onboarding flag). */
+    suspend fun clearAll() {
+        dataStore.edit { it.clear() }
+        Log.w(TAG, "All preferences cleared, user will be redirected to Setup")
+    }
+
     suspend fun resetOnboarding() {
         dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = false }
         Log.i(TAG, "Onboarding reset, user will be redirected to Setup")
@@ -91,7 +105,7 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     suspend fun updateProfileImage(uri: Uri?) {
-        if (uri != null) {
+        if (uri != null && context != null) {
             // Keep read access to the picked photo after the app restarts
             try {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)

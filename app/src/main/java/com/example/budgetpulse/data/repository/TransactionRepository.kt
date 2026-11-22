@@ -75,6 +75,17 @@ class TransactionRepository(
         Log.i(TAG, "Deleted transaction #${item.id} (${item.categoryName})")
     }
 
+    /**
+     * Wipes every transaction, custom category and budget limit, then puts the
+     * 6 default category cards back so the Home page is ready for a fresh start.
+     */
+    suspend fun clearAllData() {
+        transactionDao.deleteAllTransactions()
+        categoryDao.deleteAllCategories()
+        Log.w(TAG, "All transactions, categories and budget limits deleted")
+        ensureDefaultCategories()
+    }
+
     // ---------- Categories ----------
 
     val categories: Flow<List<CategoryEntity>> = categoryDao.getAllCategories()

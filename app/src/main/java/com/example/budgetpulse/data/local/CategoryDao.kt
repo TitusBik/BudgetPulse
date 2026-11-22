@@ -32,6 +32,10 @@ interface CategoryDao {
     @Query("DELETE FROM category_table WHERE id = :categoryId")
     suspend fun deleteCategoryById(categoryId: String)
 
+    // Used by "Restart Setup" to wipe custom categories and budget limits
+    @Query("DELETE FROM category_table")
+    suspend fun deleteAllCategories()
+
     @Query("UPDATE category_table SET monthly_budget = :budget WHERE id = :categoryId")
     suspend fun updateMonthlyBudget(categoryId: String, budget: Double?)
 }

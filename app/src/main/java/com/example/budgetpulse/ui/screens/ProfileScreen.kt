@@ -307,13 +307,15 @@ fun ProfileScreen(
         if (showRestartDialog) {
             AlertDialog(
                 onDismissRequest = { showRestartDialog = false },
-                title = { Text("Restart setup?") },
-                text = { Text("You will go back to the setup screen. Your transactions are kept.") },
+                title = { Text("Restart setup and delete all data?") },
+                text = {
+                    Text("This permanently deletes all your transactions, custom categories, budget limits, nickname, photo and settings, then takes you back to the setup screen. This cannot be undone.")
+                },
                 confirmButton = {
                     TextButton(onClick = {
                         showRestartDialog = false
                         onRestartSetup()
-                    }) { Text("Restart") }
+                    }) { Text("Delete & Restart", color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showRestartDialog = false }) { Text("Cancel") }

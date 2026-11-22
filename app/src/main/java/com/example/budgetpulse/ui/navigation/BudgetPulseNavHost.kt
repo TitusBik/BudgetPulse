@@ -39,8 +39,6 @@ object BudgetPulseDestinations {
     const val TRANSACTIONS = "transactions"
     const val BUDGET = "budget"
     const val SETTINGS = "settings"
-
-    // Detail screen receives the selected transaction's id as a navigation argument
     const val TRANSACTION_ID_ARG = "transactionId"
     const val TRANSACTION_DETAIL = "transaction/{$TRANSACTION_ID_ARG}"
     fun transactionDetail(id: Int) = "transaction/$id"

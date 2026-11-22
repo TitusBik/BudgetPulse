@@ -22,6 +22,10 @@ interface TransactionDao {
     @Delete
     suspend fun deleteTransaction(item: TransactionItem)
 
+    // Used by "Restart Setup" to wipe every record
+    @Query("DELETE FROM transactionitem_table")
+    suspend fun deleteAllTransactions()
+
     // Used by the Transaction Detail screen (id is passed through navigation)
     @Query("SELECT * FROM transactionitem_table WHERE id = :id")
     fun getTransactionById(id: Int): Flow<TransactionItem?>
